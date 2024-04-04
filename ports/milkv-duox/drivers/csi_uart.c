@@ -3,7 +3,7 @@
 */
 
 #include "csi_uart.h"
-#include "misc.h"
+// #include "misc.h"
 #include "mmio.h"
 #include "dw_uart_ll.h"
 

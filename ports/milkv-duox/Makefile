@@ -9,8 +9,8 @@ MICROPY_ROM_TEXT_COMPRESSION ?= 0
 
 # Define toolchain and other tools.
 CROSS_COMPILE ?= riscv64-unknown-elf-
-DFU ?= $(TOP)/tools/dfu.py
-PYDFU ?= $(TOP)/tools/pydfu.py
+DFU ?= tools/dfu.py
+
 
 # Set CFLAGS.
 CFLAGS += -Wall -Wextra -std=c99 -nostdlib 
@@ -34,18 +34,18 @@ LDFLAGS += --gc-sections
 SRC_C += main.c
 SRC_C += \
 	drivers/csi_adc.c \
-	driver/csi_common.c \
+	drivers/csi_common.c \
 	drivers/csi_dma_consts.c \
-	driver/csd_dma.c \
+	drivers/csi_dma.c \
 	drivers/csi_gpio_pin.c \
-	driver/csd_gpio.c \
+	drivers/csi_gpio.c \
 	drivers/csi_iic.c \
-	driver/csd_pin.c \
-	driver/csd_pwm.c \
-	driver/csd_spi.c \
-	driver/csd_target_get.c \
-	driver/csd_uart.c \
-	driver/csd_dma.c \
+	drivers/csi_pin.c \
+	drivers/csi_pwm.c \
+	drivers/csi_spi.c \
+	drivers/csi_target_get.c \
+	drivers/csi_uart.c \
+	drivers/csi_dma.c \
 	hal/hal_dma.c \
 	hal/hal_sysdma.c \
 	hal/dw/dw_iic_ll.c \
@@ -76,7 +76,7 @@ OBJ += $(addprefix $(BUILD)/, $(SRC_C:.c=.o))
 OBJ += $(addprefix $(BUILD)/, $(SRC_S:.S=.o))
 
 # Define the top-level target, the main firmware.
-all: $(BUILD)/firmware.bin
+all: $(BUILD)/fip.bin
 
 $(BUILD)/firmware.elf: $(OBJ)
 	$(ECHO) "LINK $@"
@@ -86,6 +86,10 @@ $(BUILD)/firmware.elf: $(OBJ)
 $(BUILD)/firmware.bin: $(BUILD)/firmware.elf
 	$(ECHO) "Create $@"
 	$(Q)$(OBJCOPY) -O binary $^ $@
+
+$(BUILD)/fip.bin: $(BUILD)/firmware.bin
+	$(ECHO) "Create $@"
+	$(Q)$(PYTHON) $(DFU) -b 0x08000000:$^ $@
 
 # Include remaining core make rules.
 include $(TOP)/py/mkrules.mk
