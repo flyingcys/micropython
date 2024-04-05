@@ -3,6 +3,9 @@
 #include "py/compile.h"
 #include "py/runtime.h"
 
+#include "csi_pin.h"
+#include "csi_uart.h"
+
 static const char *demo_single_input =
     "print('hello world!', list(x + 1 for x in range(10)), end='eol\\n')";
 
@@ -29,20 +32,55 @@ static void do_str(const char *src, mp_parse_input_kind_t input_kind) {
         mp_obj_print_exception(&mp_plat_print, (mp_obj_t)nlr.ret_val);
     }
 }
+uint8_t _rxPin, _txPin;
+int _uartNum;
 
-// void pre_system_init(void)
-// {
+csi_uart_t _uart;
+extern dev_pin_map_t uart_rx_map[];
+extern dev_pin_map_t uart_tx_map[];
+
+void uart_init(unsigned long baud, uint32_t config, int8_t rxPin, int8_t txPin)
+{
+    const dev_pin_map_t* rx_pin = target_pin_number_to_dev(rxPin, uart_rx_map, _uartNum);
+    const dev_pin_map_t* tx_pin = target_pin_number_to_dev(txPin, uart_tx_map, _uartNum);
+
+    if (rx_pin == NULL || tx_pin == NULL) {
+        pr_err("pin GPIO %d or %d are not used as Uart func\n", rxPin, txPin);
+        return;
+    }
+
+    if (csi_pin_set_mux(rx_pin->name, rx_pin->func)) {
+        pr_err("pin GPIO %d fails to config as Uart_rx func\n", rxPin);
+        return;
+    }
+
+    if (csi_pin_set_mux(tx_pin->name, tx_pin->func)) {
+        pr_err("pin GPIO %d fails to config as Uart_tx func\n", txPin);
+        return;
+    }
+
+    csi_uart_init(&_uart, _uartNum);
+
+    _rxPin = rxPin;
+    _txPin = txPin;
+
+    csi_uart_format(&_uart, SERIAL_DATA(config), SERIAL_PARITY(config), SERIAL_STOP(config));
+    csi_uart_baud(&_uart, baud);
+}
+void pre_system_init(void)
+{
+    irq_init();
+    tick_init();
 // 	pinmux_init();
-// 	uart_init();
+	uart_init(115200, 8, 15, 14);
 // 	irq_init();
 // 	printf("Pre system init done\n");
-// }
+}
 
 int main(void)
 {
-    // irq_init();
-    // tick_init();
-    // pre_system_init();
+
+    pre_system_init();
 
 	// prvSetupHardware();
 
