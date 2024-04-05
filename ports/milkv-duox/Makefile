@@ -9,8 +9,23 @@ MICROPY_ROM_TEXT_COMPRESSION ?= 0
 
 # Define toolchain and other tools.
 CROSS_COMPILE ?= riscv64-unknown-elf-
-DFU ?= tools/dfu.py
 
+## fip param
+FIP_COMPRESS ?= lzma
+
+BUILD_PLAT ?= tools/duo256
+CHIP_CONF_PATH = ${BUILD_PLAT}/chip_conf.bin
+MONITOR_PATH = tools/fw_dynamic.bin
+
+FIPTOOL ?= tools/plat/cv181x/fiptool.py
+BLCP_IMG_RUNADDR ?= 0x05200200
+BLCP_PARAM_LOADADDR ?= 0
+NAND_INFO = 00000000
+NOR_INFO = $(shell printf '%72s' | tr ' ' 'FF')
+DDR_PARAM_TEST_PATH = tools/test/cv181x/ddr_param.bin
+BLCP_PATH = tools/test/empty.bin
+BLCP_2ND_PATH = build/firmware.bin
+LOADER_2ND_PATH= ${BUILD_PLAT}/u-boot-raw.bin
 
 # Set CFLAGS.
 CFLAGS += -Wall -Wextra -std=c99 -nostdlib 
@@ -27,11 +42,10 @@ endif
 LDSCRIPT = cv181x_lscript.ld
 
 # Set linker flags.
-LDFLAGS += -nostdlib -T $(LDSCRIPT) -Map=$(@:.elf=.map) --cref
-LDFLAGS += --gc-sections
+LDFLAGS += -nostartfiles -fms-extensions -ffunction-sections -fdata-sections -Wl,--gc-sections,-Map=$@.map,-cref,-u,_start -T $(LDSCRIPT)
 
 # Define the required source files.
-SRC_C += main.c
+SRC_C += main.c lib.c mphalport.c
 SRC_C += \
 	drivers/csi_adc.c \
 	drivers/csi_common.c \
@@ -80,7 +94,7 @@ all: $(BUILD)/fip.bin
 
 $(BUILD)/firmware.elf: $(OBJ)
 	$(ECHO) "LINK $@"
-	$(Q)$(LD) $(LDFLAGS) -o $@ $^
+	$(Q)$(CROSS_COMPILE)gcc $(LDFLAGS) -o $@ $^
 	$(Q)$(SIZE) $@
 
 $(BUILD)/firmware.bin: $(BUILD)/firmware.elf
@@ -89,7 +103,23 @@ $(BUILD)/firmware.bin: $(BUILD)/firmware.elf
 
 $(BUILD)/fip.bin: $(BUILD)/firmware.bin
 	$(ECHO) "Create $@"
-	$(Q)$(PYTHON) $(DFU) -b 0x08000000:$^ $@
+	${Q}. ${BUILD_PLAT}/blmacros.env && \
+	${FIPTOOL} -v genfip \
+		'${BUILD_PLAT}/fip.bin' \
+		--MONITOR_RUNADDR="$${MONITOR_RUNADDR}" \
+		--BLCP_2ND_RUNADDR="$${BLCP_2ND_RUNADDR}" \
+		--CHIP_CONF='${CHIP_CONF_PATH}' \
+		--NOR_INFO='${NOR_INFO}' \
+		--NAND_INFO='${NAND_INFO}'\
+		--BL2='${BUILD_PLAT}/bl2.bin' \
+		--BLCP_IMG_RUNADDR=${BLCP_IMG_RUNADDR} \
+		--BLCP_PARAM_LOADADDR=${BLCP_PARAM_LOADADDR} \
+		--BLCP=${BLCP_PATH} \
+		--DDR_PARAM='${DDR_PARAM_TEST_PATH}' \
+		--BLCP_2ND='${BLCP_2ND_PATH}' \
+		--MONITOR='${MONITOR_PATH}' \
+		--LOADER_2ND='${LOADER_2ND_PATH}' \
+		--compress='${FIP_COMPRESS}'
 
 # Include remaining core make rules.
 include $(TOP)/py/mkrules.mk

@@ -32,9 +32,9 @@
 
 .org 0
     .section .vectors, "ax"
-    .globl Reset_Handler
-    .type Reset_Handler,@function
-Reset_Handler:
+    .globl _start
+    .type _start,@function
+_start:
     .cfi_startproc
     .cfi_undefined ra
 .option push
